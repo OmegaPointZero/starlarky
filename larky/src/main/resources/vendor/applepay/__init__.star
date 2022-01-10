@@ -1,0 +1,1 @@
+load("@vendor//applepay/payment", Payment="Payment")
