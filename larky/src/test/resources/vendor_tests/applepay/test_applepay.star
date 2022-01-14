@@ -7,6 +7,11 @@ load("@stdlib//json", "json")
 load("@stdlib//binascii", hexlify="hexlify", unhexlify="unhexlify")
 load("@vendor//applepay", Payment="Payment")
 load("@vendor//Crypto/Cipher/AES", AES="AES")
+load("@vendor//Crypto/PublicKey/ECC", ECC="ECC")
+
+load("@vendor//cryptography/hazmat/primitives/serialization", load_pem_private_key="load_pem_private_key",
+        load_der_public_key="load_der_public_key")
+
 
 certificate_pem = b"-----BEGIN CERTIFICATE-----\nMIIEcDCCBBagAwIBAgIIUyrEM4IzBHQwCgYIKoZIzj0EAwIwgYAxNDAyBgNVBAMM\nK0FwcGxlIFdvcmxkd2lkZSBEZXZlbG9wZXIgUmVsYXRpb25zIENBIC0gRzIxJjAk\nBgNVBAsMHUFwcGxlIENlcnRpZmljYXRpb24gQXV0aG9yaXR5MRMwEQYDVQQKDApB\ncHBsZSBJbmMuMQswCQYDVQQGEwJVUzAeFw0xNDEwMjYxMjEwMTBaFw0xNjExMjQx\nMjEwMTBaMIGhMS4wLAYKCZImiZPyLGQBAQwebWVyY2hhbnQuY29tLnNlYXRnZWVr\nLlNlYXRHZWVrMTQwMgYDVQQDDCtNZXJjaGFudCBJRDogbWVyY2hhbnQuY29tLnNl\nYXRnZWVrLlNlYXRHZWVrMRMwEQYDVQQLDAo5QjNRWTlXQlo1MRcwFQYDVQQKDA5T\nZWF0R2VlaywgSW5jLjELMAkGA1UEBhMCVVMwWTATBgcqhkjOPQIBBggqhkjOPQMB\nBwNCAAQPjiA1kTEodST2wy5d5kQFrM0D5qBX9Ukry8W6D+vC7OqbMoTm/upRM1GR\nHeA2LaVTrwAnpGhoO0ETqYF2Nu4Vo4ICVTCCAlEwRwYIKwYBBQUHAQEEOzA5MDcG\nCCsGAQUFBzABhitodHRwOi8vb2NzcC5hcHBsZS5jb20vb2NzcDA0LWFwcGxld3dk\ncmNhMjAxMB0GA1UdDgQWBBQWGfKgPgVBX8JOv84q1c04HShMmzAMBgNVHRMBAf8E\nAjAAMB8GA1UdIwQYMBaAFIS2hMw6hmJyFlmU6BqjvUjfOt8LMIIBHQYDVR0gBIIB\nFDCCARAwggEMBgkqhkiG92NkBQEwgf4wgcMGCCsGAQUFBwICMIG2DIGzUmVsaWFu\nY2Ugb24gdGhpcyBjZXJ0aWZpY2F0ZSBieSBhbnkgcGFydHkgYXNzdW1lcyBhY2Nl\ncHRhbmNlIG9mIHRoZSB0aGVuIGFwcGxpY2FibGUgc3RhbmRhcmQgdGVybXMgYW5k\nIGNvbmRpdGlvbnMgb2YgdXNlLCBjZXJ0aWZpY2F0ZSBwb2xpY3kgYW5kIGNlcnRp\nZmljYXRpb24gcHJhY3RpY2Ugc3RhdGVtZW50cy4wNgYIKwYBBQUHAgEWKmh0dHA6\nLy93d3cuYXBwbGUuY29tL2NlcnRpZmljYXRlYXV0aG9yaXR5LzA2BgNVHR8ELzAt\nMCugKaAnhiVodHRwOi8vY3JsLmFwcGxlLmNvbS9hcHBsZXd3ZHJjYTIuY3JsMA4G\nA1UdDwEB/wQEAwIDKDBPBgkqhkiG92NkBiAEQgxARjkzOEY0NjU4Q0EyQzFDOUMz\nOEI4REZDQjVEQkIyQTIyNDU2MDdEREUyRjExNDYyMEU4NDY4RUY1MkQyMDhDQTAK\nBggqhkjOPQQDAgNIADBFAiB+Q4zzpMj2DJTCIhDFBcmwK1zQAC70fY2IsYd8+Nxu\nuwIhAKj9RrTOyiaQnoT5Mqi3UHopb6xTugl3LUDBloraBHyP\n-----END CERTIFICATE-----\n"
 private_key_pem = b"-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIDqrpF0KEFW4Ncb76vyBi3StFLiT222sFC0wC3LsP1M9oAoGCCqGSM49\nAwEHoUQDQgAED44gNZExKHUk9sMuXeZEBazNA+agV/VJK8vFug/rwuzqmzKE5v7q\nUTNRkR3gNi2lU68AJ6RoaDtBE6mBdjbuFQ==\n-----END EC PRIVATE KEY-----\n"
@@ -42,13 +47,18 @@ def test_decryption():
 def test_encryption():
     payment = Payment(certificate_pem, private_key_pem)
     encrypted_json = payment.encrypt(payment_json['header']['ephemeralPublicKey'], decrypted_json_output)
-    asserts.assert_that(b64encode(encrypted_json).decode('utf-8')).is_equal_to(payment_json['data'])
+    asserts.assert_that(encrypted_json['data']).is_equal_to(payment_json['data'])
+
+def test_addtl():
+    private = load_pem_private_key(private_key_pem, None)
+    print(private)
 
 def _testsuite():
     _suite = unittest.TestSuite()
     _suite.addTest(unittest.FunctionTestCase(test_generate_symkey))
     _suite.addTest(unittest.FunctionTestCase(test_decryption))
     _suite.addTest(unittest.FunctionTestCase(test_encryption))
+    _suite.addTest(unittest.FunctionTestCase(test_addtl))
     return _suite
 
 

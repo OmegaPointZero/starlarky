@@ -20,6 +20,7 @@ import org.bouncycastle.asn1.ASN1Sequence;
 import org.bouncycastle.asn1.DERBitString;
 import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.DERUTF8String;
+import org.bouncycastle.asn1.DLTaggedObject;
 
 public class ASN1Utils {
 
@@ -204,6 +205,9 @@ public class ASN1Utils {
       } else if (obj instanceof DEROctetString) {
         DEROctetString dbs = (DEROctetString) obj;
         return new ASN1.LarkyOctetString(dbs);
+      } else if (obj instanceof DLTaggedObject){
+        DLTaggedObject dltObject = (DLTaggedObject) obj;
+        return new ASN1.LarkyDLTaggedObject(dltObject);
       } else {
         throw Starlark.errorf("Unknown type %s to convert to asASN1Encodable", Starlark.type(obj));
       }

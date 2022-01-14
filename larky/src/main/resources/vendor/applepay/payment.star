@@ -1,6 +1,8 @@
-load("@stdlib//base64", b64decode="b64decode")
+load("@stdlib//base64", b64decode="b64decode", b64encode="b64encode")
 load("@stdlib//binascii", hexlify="hexlify", unhexlify="unhexlify")
 load("@stdlib//larky", larky="larky")
+#load("@stdlib//japplepay", _applepay="japplepay")
+
 load("@vendor//Crypto/Hash/SHA256", SHA256="SHA256")
 load("@vendor//cryptography/x509", load_pem_x509_certificate="load_pem_x509_certificate")
 load("@vendor//Crypto/Cipher/AES", AES="AES")
@@ -69,21 +71,7 @@ def Payment(merc_ca_pem, private_key_pem, root_ca_der=None, aai_ca_der=None):
         
 
     def decrypt(ephemeral_public_key, cipher_data, transaction_id=None, application_data=''):
-        """
-        if transaction_id is not None:
-            sig = self._valid_signature(ephemeral_public_key, cipher_data, transaction_id, application_data)
 
-        public_key = load_der_public_key(b64decode(ephemeral_public_key), default_backend())
-        cipherdata = b64decode(cipher_data)
-        shared_secred = self._private_key.exchange(ec.ECDH(), public_key)
-
-        symmetric_key = self._generate_symmetric_key(shared_secred)
-
-        mode = ciphers.modes.GCM(b'\0' * 16, cipherdata[-16:], 16)
-        decryptor = ciphers.Cipher(ciphers.algorithms.AES(symmetric_key), mode, backend=default_backend()).decryptor()
-
-        return decryptor.update(cipherdata[:-16]) + decryptor.finalize()
-        """
         # public_key = load_der_public_key(b64decode(ephemeral_public_key), default_backend())
         cipherdata = b64decode(cipher_data)
         # shared_secret = self._private_key.exchange(ec.ECDH(), public_key)
@@ -95,7 +83,9 @@ def Payment(merc_ca_pem, private_key_pem, root_ca_der=None, aai_ca_der=None):
         decrypted = cipher.decrypt_and_verify(cipherdata[:-16],cipherdata[-16:])
         return decrypted
 
-    def encrypt(ephemeral_public_key, plaintext):
+    def encrypt(ephemeral_public_key, plaintext, applicationData=None):
+
+        # Encrypt plaintext
         shared_secret = unhexlify(b'6b6a4f7de992740e7ad059f32d2bfccdf76559d1894e89c0a4e2ead737e0c7cc')
         merc_id = unhexlify(b'F938F4658CA2C1C9C38B8DFCB5DBB2A2245607DDE2F114620E8468EF52D208CA')
         symmetric_key = _generate_symmetric_key(shared_secret, merc_id)
@@ -103,7 +93,26 @@ def Payment(merc_ca_pem, private_key_pem, root_ca_der=None, aai_ca_der=None):
         cipher = AES.new(symmetric_key, AES.MODE_GCM, nonce=nonce)
         encrypted,tag = cipher.encrypt_and_digest(plaintext)
         encrypted_payload = encrypted+tag
-        return encrypted_payload
+
+        # Generate payload to return
+        payment_json = {
+            "version":"EC_v1",
+            "data": b64encode(encrypted_payload).decode('utf-8'),
+            "signature": "",
+            "header": {
+                "transactionId": "2686f5297f123ec7fd9d31074d43d201953ca75f098890375f13aed2737d92f2", # Do I do this?
+                "ephemeralPublicKey": ephemeral_public_key,
+                "publicKeyHash": "LbsUwAT6w1JV9tFXocU813TCHks+LSuFF0R/eBkrWnQ=" # Go back and look in the data for this actual value
+            }
+        }
+
+        # Calculate Signature
+        sig_string = b64decode(ephemeral_public_key) + b64decode(encrypted_payload)
+        sig_string += unhexlify(payment_json['header']['transactionId'])
+        if applicationData:
+            sig_string += unhexlify(applicationData)
+
+        return payment_json
 
     self.decrypt = decrypt
     self.encrypt = encrypt
