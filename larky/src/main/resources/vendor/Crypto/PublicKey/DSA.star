@@ -73,6 +73,8 @@ def DsaKey(key_dict):
     self._keydata = ['y', 'g', 'p', 'q', 'x']
 
     def __init__(key_dict):
+        print("Initializing DSA, key_dict:")
+        print(key_dict)
         input_set = sets.Set(key_dict.keys())
         public_set = sets.Set(['y', 'g', 'p', 'q'])
         if not public_set.is_subset(input_set):
@@ -96,6 +98,9 @@ def DsaKey(key_dict):
 
         blind_factor = Integer.random_range(min_inclusive=1,
                                            max_exclusive=q)
+        print("BLIND FACTOR: %s" % blind_factor)
+        print("K: %s" % k)
+        print("Q: %s" % q)
         inv_blind_k = (blind_factor * k).inverse(q)
         blind_x = x * blind_factor
 

@@ -10,9 +10,9 @@ def test_DSS():
     key = DSA.generate(2048)
     message = b"Hello"
     hash_obj = SHA256.new(message)
-    signer = DSS.new(key, 'fips-186-3')
+    signer = DSS.new(key, 'deterministic-rfc6979')
     signature = signer.sign(hash_obj)
-    print(signer.verify(hash_obj, signature))
+    #print(signer.verify(hash_obj, signature))
 
 
 def _testsuite():

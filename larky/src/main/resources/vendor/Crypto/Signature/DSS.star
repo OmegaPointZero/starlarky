@@ -36,6 +36,7 @@ load("@stdlib//builtins", builtins="builtins")
 load("@stdlib//binascii", hexlify="hexlify")
 load("@stdlib//codecs", codecs="codecs")
 load("@stdlib//larky", WHILE_LOOP_EMULATION_ITERATION="WHILE_LOOP_EMULATION_ITERATION", larky="larky")
+load("@stdlib//types", types="types")
 load("@vendor//Crypto/Hash/HMAC", HMAC="HMAC")
 load("@vendor//Crypto/Math/Numbers", Integer="Integer")
 load("@vendor//Crypto/PublicKey/DSA", DsaKey="DsaKey")
@@ -185,6 +186,13 @@ def DeterministicDsaSigScheme(key, encoding, order, private_key):
     def __init__(key, encoding, order, private_key):
         # super(DeterministicDsaSigScheme, self).__init__(key, encoding, order)
         self._private_key = private_key
+        self._key = key
+        self._order = order
+        self._encoding = encoding
+
+        self._order_bits = self._order.size_in_bits()
+        self._order_bytes = (self._order_bits - 1) // 8 + 1
+
         return self
     self = __init__(key, encoding, order, private_key)
 
@@ -202,8 +210,16 @@ def DeterministicDsaSigScheme(key, encoding, order, private_key):
 
     def _int2octets(int_mod_q):
         """See 2.3.3 in RFC6979"""
-        if not ((0 < int_mod_q) and (int_mod_q < self._order)):
+        """
+        int_mod_q might be an Integer or an int. 
+        Cannot compare int<=>MutableStruct Integer; convert
+        to int for comparison
+        """
+        if not types.is_int(int_mod_q):
+            int_mod_q = int(int_mod_q)
+        if not ((0 < int_mod_q) and (int_mod_q < int(self._order))):
             fail("assert (0 < int_mod_q) and (int_mod_q < self._order) failed!")
+        print(self)
         return long_to_bytes(int_mod_q, self._order_bytes)
     self._int2octets = _int2octets
 
@@ -238,9 +254,9 @@ def DeterministicDsaSigScheme(key, encoding, order, private_key):
             # Step e/g
             mask_v = HMAC.new(nonce_k, mask_v, mhash).digest()
 
-        nonce = -1
+        nonce = Integer(-1)
         for _while_ in range(WHILE_LOOP_EMULATION_ITERATION):
-            if not not (0 < nonce) and (nonce < self._order):
+            if not not (Integer(0) < nonce) and (nonce < self._order):
                 break
             # Step h.C (second part)
             if nonce != -1:
@@ -264,8 +280,52 @@ def DeterministicDsaSigScheme(key, encoding, order, private_key):
     def _valid_hash(msg_hash):
         return True
     self._valid_hash = _valid_hash
-    return self
 
+    def sign(msg_hash):
+        """Compute the DSA/ECDSA signature of a message.
+        Args:
+          msg_hash (hash object):
+            The hash that was carried out over the message.
+            The object belongs to the :mod:`Crypto.Hash` package.
+            Under mode ``'fips-186-3'``, the hash must be a FIPS
+            approved secure hash (SHA-2 or SHA-3).
+        :return: The signature as ``bytes``
+        :raise ValueError: if the hash algorithm is incompatible to the (EC)DSA key
+        :raise TypeError: if the (EC)DSA key has no private half
+        """
+
+        if not self._key.has_private():
+            fail("TypeError: Private key is needed to sign")
+
+        if not self._valid_hash(msg_hash):
+            fail("ValueError: Hash is not sufficiently strong")
+
+        # Generate the nonce k (critical!)
+        nonce = self._compute_nonce(msg_hash)
+
+        # Perform signature using the raw API
+        z = Integer.from_bytes(msg_hash.digest()[:self._order_bytes])
+        sig_pair = self._key._sign(z, nonce)
+
+        # Encode the signature into a single byte string
+        if self._encoding == 'binary':
+            output = b"".join([long_to_bytes(x, self._order_bytes)
+                               for x in sig_pair])
+        else:
+            # Dss-sig  ::=  SEQUENCE  {
+            #   r   INTEGER,
+            #   s   INTEGER
+            # }
+            # Ecdsa-Sig-Value  ::=  SEQUENCE  {
+            #   r   INTEGER,
+            #   s   INTEGER
+            # }
+            output = codecs.encode(DerSequence(sig_pair), encoding="utf-8")
+
+        return output
+    self.sign = sign
+
+    return self
 
 def FipsDsaSigScheme(key, encoding, order, randfunc):
 
@@ -349,6 +409,9 @@ def FipsDsaSigScheme(key, encoding, order, randfunc):
 
         # Perform signature using the raw API
         z = Integer.from_bytes(msg_hash.digest()[:self._order_bytes])
+        print("Got passed these values:")
+        print("z: %s" % z)
+        print("nonce: %s" % nonce)
         sig_pair = self._key._sign(z, nonce)
 
         # Encode the signature into a single byte string

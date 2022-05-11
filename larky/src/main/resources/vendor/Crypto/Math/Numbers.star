@@ -69,6 +69,11 @@ def _Integer(value):
     def from_bytes(byte_string):
         return Integer(bytes_to_long(byte_string))
 
+    def _apply_and_return(term):
+        if not types.is_int(term):
+            term = int(term)
+        return term
+
     # Rich comparisons
     def __eq__(term):
         if term == None:
@@ -79,8 +84,8 @@ def _Integer(value):
     def __lt__(term):
         if term == None:
             return False
-        term = operator.index(term)
-        return self._value < term
+        term = _apply_and_return(operator.index(term))
+        return _apply_and_return(self._value) < term
 
     def __ne__(term):
         return not __eq__(term)
@@ -287,6 +292,8 @@ def _Integer(value):
         if modulus < 0:
             fail('ValueError: Modulus cannot be negative')
         r_p, r_n = self._value, modulus
+        print("r_p: %s" % r_p)
+        print("r_n: %s" % r_n)
         s_p, s_n = 1, 0
         for _while_ in range(_WHILE_LOOP_EMULATION_ITERATION):
             if r_n <= 0:
@@ -304,7 +311,10 @@ def _Integer(value):
         return self
 
     def inverse(modulus):
+        print("THIS IS MY SELF: %s" % self)
         result = Integer(self)
+        print("THIS IS MY RESULT: %s" % result)
+        print("Trying to invert this modulus: %s" % modulus)
         result.inplace_inverse(modulus)
         return result
 
